@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Güvenlik Zafiyet Analizi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Genel stil güncellemeleri */
+        body {
+            background-color: #f4f4f4; /* Arka plan rengi */
+        }
+        .container {
+            max-width: 1200px; /* Maksimum genişlik */
+            margin: auto; /* Ortala */
+        }
+        h1, h4 {
+            font-family: 'Arial', sans-serif; /* Yazı tipi */
+            color: #333; /* Yazı rengi */
+        }
+
+        /* Kart stilleri */
+        .card {
+            border-radius: 10px; /* Köşe yuvarlama */
+            overflow: hidden; /* Taşmayı önle */
+            transition: transform 0.3s; /* Geçiş efekti */
+        }
+        .card:hover {
+            transform: scale(1.02); /* Hover efekti */
+        }
+
+        /* Buton stilleri */
+        .btn-primary {
+            background-color: #007bff; /* Buton rengi */
+            border: none; /* Kenar yok */
+            border-radius: 5px; /* Köşe yuvarlama */
+        }
+        .btn-primary:hover {
+            background-color: #0056b3; /* Hover rengi */
+        }
+
+        /* Yükleniyor animasyonu */
+        .loading {
+            display: none; /* Başlangıçta gizle */
+            text-align: center; /* Ortala */
+        }
+
+        /* Kod alanları için özel stiller */
+        .code-area {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre;
+            overflow-x: auto;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+
+        /* Risk seviyesi göstergeleri */
+        .severity-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .severity-kritik { background-color: #dc3545; }
+        .severity-yuksek { background-color: #fd7e14; }
+        .severity-orta { background-color: #ffc107; }
+        .severity-dusuk { background-color: #28a745; }
+
+        /* Accordion özel stilleri */
+        .accordion-button:not(.collapsed) {
+            background-color: #f8f9fa;
+            color: #0d6efd;
+        }
+        .accordion-body {
+            padding: 20px;
+            background-color: #fff;
+        }
+
+        /* Zafiyet kartları */
+        .vulnerability-card {
+            margin-bottom: 20px;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .vulnerability-card .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        /* Kopya/yapıştır butonları */
+        .copy-button {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: #343a40;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .copy-button:hover {
+            background: #23272b;
+        }
+
+        /* Responsive tasarım ayarları */
+        @media (max-width: 768px) {
+            .code-area {
+                font-size: 12px;
+            }
+            .modal-dialog {
+                margin: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Detaylı Güvenlik Zafiyet Analizi</h1>
+        
+        <div class="card">
+            <div class="card-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="projectFile" class="form-label">Proje ZIP Dosyası</label>
+                        <input type="file" class="form-control" id="projectFile" name="project" accept=".zip" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Analiz Et</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Yükleniyor...</span>
+            </div>
+            <p class="mt-2">Proje analiz ediliyor, lütfen bekleyin...</p>
+        </div>
+
+        <div id="results" class="result-card">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Genel Analiz Özeti</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Proje Risk Skoru:</h5>
+                            <div class="progress mb-3" style="height: 25px;">
+                                <div id="riskProgress" class="progress-bar" role="progressbar"></div>
+                            </div>
+                            <div class="mt-3">
+                                <h6>Risk Seviyesi Dağılımı:</h6>
+                                <div class="d-flex justify-content-between mt-2">
+                                    <div>
+                                        <span class="severity-indicator severity-kritik"></span>
+                                        Kritik: <span id="criticalCount">0</span>
+                                    </div>
+                                    <div>
+                                        <span class="severity-indicator severity-yuksek"></span>
+                                        Yüksek: <span id="highCount">0</span>
+                                    </div>
+                                    <div>
+                                        <span class="severity-indicator severity-orta"></span>
+                                        Orta: <span id="mediumCount">0</span>
+                                    </div>
+                                    <div>
+                                        <span class="severity-indicator severity-dusuk"></span>
+                                        Düşük: <span id="lowCount">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Analiz İstatistikleri:</h5>
+                            <ul class="list-group">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Toplam Taranan Dosya
+                                    <span id="totalFiles" class="badge bg-primary rounded-pill">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Tespit Edilen Zafiyet
+                                    <span id="totalVulnerabilities" class="badge bg-danger rounded-pill">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Etkilenen Dosya Sayısı
+                                    <span id="affectedFiles" class="badge bg-warning rounded-pill">0</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">Detaylı Zafiyet Analizi</h4>
+                </div>
+                <div class="card-body">
+                    <div id="vulnerabilitiesList" class="row">
+                        <!-- Zafiyetler buraya dinamik olarak eklenecek -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dosya Bazlı Detaylı Analiz Kartı -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0"><i class="fas fa-file-code"></i> Dosya Bazlı Detaylı Analiz</h4>
+                </div>
+                <div class="card-body">
+                    <div class="file-list row">
+                        <!-- Dosyalar dinamik olarak buraya eklenecek -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detaylı Analiz Modalı -->
+    <div class="modal fade" id="fileDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-code"></i>
+                        Dosya Analizi: <span id="modalFileName"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Risk Skoru -->
+                    <div class="mb-4">
+                        <h6><i class="fas fa-chart-line"></i> Risk Skoru:</h6>
+                        <div class="progress" style="height: 30px;">
+                            <div id="modalRiskProgress" class="progress-bar" role="progressbar"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Zafiyetler Listesi -->
+                    <div class="mb-4">
+                        <h6>
+                            <i class="fas fa-bug"></i>
+                            Tespit Edilen Zafiyetler (<span id="modalVulnCount">0</span>):
+                        </h6>
+                        <div class="accordion" id="modalVulnerabilities">
+                            <!-- Zafiyetler dinamik olarak buraya eklenecek -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Zafiyet detaylarını göster
+            function showFileDetails(fileInfo) {
+                $('#modalFileName').text(fileInfo.name);
+                $('#modalRiskProgress')
+                    .css('width', (fileInfo.risk_score * 10) + '%')
+                    .text(fileInfo.risk_score + '/10')
+                    .removeClass()
+                    .addClass('progress-bar')
+                    .addClass(getRiskClass(fileInfo.risk_score));
+                
+                $('#modalVulnCount').text(fileInfo.vulnerabilities.length);
+                
+                $('#modalVulnerabilities').empty();
+                fileInfo.vulnerabilities.forEach((vuln, index) => {
+                    const accordionItem = `
+                        <div class="accordion-item vulnerability-card">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#collapse${index}">
+                                    <span class="severity-indicator severity-${vuln.risk_level.toLowerCase()}"></span>
+                                    ${vuln.name} 
+                                    <small class="ms-2 text-muted">(Satır: ${vuln.line_number})</small>
+                                </button>
+                            </h2>
+                            <div id="collapse${index}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}"
+                                 data-bs-parent="#modalVulnerabilities">
+                                <div class="accordion-body">
+                                    <!-- Zafiyet Açıklaması -->
+                                    <div class="mb-4">
+                                        <h6><i class="fas fa-info-circle"></i> Açıklama:</h6>
+                                        <p class="text-muted">${vuln.description}</p>
+                                    </div>
+
+                                    <!-- Problemli Kod -->
+                                    <div class="mb-4 position-relative">
+                                        <h6><i class="fas fa-code"></i> Problemli Kod:</h6>
+                                        <button class="copy-button" onclick="copyToClipboard('vulnCode${index}')">
+                                            <i class="fas fa-copy"></i> Kopyala
+                                        </button>
+                                        <textarea id="vulnCode${index}" class="form-control code-area" 
+                                                rows="5" readonly>${vuln.code_sample}</textarea>
+                                    </div>
+
+                                    <!-- Düzeltme Önerisi -->
+                                    <div class="mb-4 position-relative">
+                                        <h6><i class="fas fa-tools"></i> Düzeltme Önerisi:</h6>
+                                        <button class="copy-button" onclick="copyToClipboard('fixCode${index}')">
+                                            <i class="fas fa-copy"></i> Kopyala
+                                        </button>
+                                        <textarea id="fixCode${index}" class="form-control code-area" 
+                                                rows="5" readonly>${vuln.fix_suggestion}</textarea>
+                                    </div>
+
+                                    <!-- Etkiler -->
+                                    <div class="mb-4">
+                                        <h6><i class="fas fa-exclamation-triangle"></i> Olası Etkiler:</h6>
+                                        <ul class="list-group">
+                                            ${vuln.impacts.map(impact => `
+                                                <li class="list-group-item">
+                                                    <i class="fas fa-angle-right text-danger"></i> ${impact}
+                                                </li>
+                                            `).join('')}
+                                        </ul>
+                                    </div>
+
+                                    <!-- Çözüm Önerileri -->
+                                    <div class="mb-4">
+                                        <h6><i class="fas fa-check-circle"></i> Çözüm Önerileri:</h6>
+                                        <ul class="list-group">
+                                            ${vuln.solutions.map(solution => `
+                                                <li class="list-group-item">
+                                                    <i class="fas fa-check text-success"></i> ${solution}
+                                                </li>
+                                            `).join('')}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    $('#modalVulnerabilities').append(accordionItem);
+                });
+
+                new bootstrap.Modal('#fileDetailModal').show();
+            }
+
+            // Risk seviyesi rengini belirle
+            function getRiskClass(score) {
+                if (score >= 8) return 'bg-danger';
+                if (score >= 6) return 'bg-warning';
+                if (score >= 4) return 'bg-info';
+                return 'bg-success';
+            }
+
+            // Kopyalama fonksiyonu
+            window.copyToClipboard = function(elementId) {
+                const element = document.getElementById(elementId);
+                element.select();
+                document.execCommand('copy');
+                
+                // Kopyalama bildirimi
+                const button = event.target.closest('.copy-button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Kopyalandı!';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                }, 2000);
+            }
+
+            // Form gönderimi
+            $('#uploadForm').on('submit', function(e) {
+                e.preventDefault();
+                $('.loading').show();
+                $('#results').hide();
+                
+                var formData = new FormData(this);
+                
+                $.ajax({
+                    url: '/analyze',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        $('.loading').hide();
+                        $('#results').show();
+                        
+                        // Genel istatistikleri güncelle
+                        updateStatistics(response);
+                        
+                        // Zafiyet listesini güncelle
+                        updateVulnerabilities(response);
+                        
+                        // Dosya listesini güncelle
+                        updateFileList(response);
+                    },
+                    error: function() {
+                        $('.loading').hide();
+                        alert('Analiz sırasında bir hata oluştu!');
+                    }
+                });
+            });
+
+            // İstatistik güncelleme
+            function updateStatistics(response) {
+                $('#riskProgress')
+                    .css('width', response.project_risk_score + '%')
+                    .text(response.project_risk_score + '%');
+                
+                $('#totalFiles').text(response.files.length);
+                $('#totalVulnerabilities').text(response.total_vulnerabilities);
+                $('#affectedFiles').text(response.files.filter(f => f.vulnerabilities.length > 0).length);
+                
+                // Risk seviyesi sayılarını güncelle
+                let counts = {critical: 0, high: 0, medium: 0, low: 0};
+                response.files.forEach(file => {
+                    file.vulnerabilities.forEach(vuln => {
+                        if (vuln.risk_level === 'Kritik') counts.critical++;
+                        else if (vuln.risk_level === 'Yüksek') counts.high++;
+                        else if (vuln.risk_level === 'Orta') counts.medium++;
+                        else counts.low++;
+                    });
+                });
+                
+                $('#criticalCount').text(counts.critical);
+                $('#highCount').text(counts.high);
+                $('#mediumCount').text(counts.medium);
+                $('#lowCount').text(counts.low);
+            }
+
+            // Zafiyet güncelleme
+            function updateVulnerabilities(response) {
+                $('#vulnerabilitiesList').empty();
+                
+                response.files.forEach(file => {
+                    file.vulnerabilities.forEach(vuln => {
+                        const vulnerabilityCard = `
+                            <div class="col-md-6 mb-3">
+                                <div class="card vulnerability-card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <span class="severity-indicator severity-${vuln.risk_level.toLowerCase()}"></span>
+                                            ${vuln.name}
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <h6>Zafiyet Açıklaması:</h6>
+                                        <p>${vuln.description}</p>
+                                        
+                                        <h6>HTML Syntax ve Kod Güvenlik Açıkları:</h6>
+                                        <pre class="code-area">${vuln.html_syntax || 'Bu dosyada HTML syntax veya kod güvenlik açığı bulunmamaktadır.'}</pre>
+                                        
+                                        <h6>Problemli Kod:</h6>
+                                        <pre class="code-area">${vuln.code_sample || 'Bu dosyada problemli kod bulunmamaktadır.'}</pre>
+                                        
+                                        <h6>Çözüm Önerileri:</h6>
+                                        <ul class="list-group">
+                                            ${vuln.solutions.map(solution => `<li class="list-group-item">${solution}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        $('#vulnerabilitiesList').append(vulnerabilityCard);
+                    });
+                });
+            }
+
+            // Dosya listesini güncelle
+            function updateFileList(response) {
+                $('.file-list').empty();
+                response.files.forEach(file => {
+                    const fileCard = `
+                        <div class="card mb-3 file-card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-file me-2"></i>
+                                    ${file.name}
+                                </h5>
+                                <span class="badge bg-danger">Risk: ${file.risk_score}/10</span>
+                            </div>
+                            <div class="card-body">
+                                <p>${file.vulnerabilities.length} zafiyet tespit edildi.</p>
+                                ${file.vulnerabilities.length > 0 ? `
+                                    <button class="btn btn-primary" onclick="showFileDetails(${JSON.stringify(file)})">Detaylı Analiz</button>
+                                    <div class="mt-3">
+                                        <h6>Zafiyet Kodu:</h6>
+                                        <pre class="code-area">${file.vulnerabilities.map(vuln => vuln.code_sample).join('\n')}</pre>
+                                    </div>
+                                    <div class="accordion mt-3" id="vulnerabilityAccordion${file.name.replace(/\s+/g, '')}">
+                                        ${file.vulnerabilities.map((vuln, index) => `
+                                            <div class="accordion-item">
+                                                <h2 class="accordion-header" id="heading${index}">
+                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" 
+                                                            data-bs-target="#collapse${index}" aria-expanded="true" aria-controls="collapse${index}">
+                                                        Zafiyet Açıklaması
+                                                    </button>
+                                                </h2>
+                                                <div id="collapse${index}" class="accordion-collapse collapse" aria-labelledby="heading${index}" data-bs-parent="#vulnerabilityAccordion${file.name.replace(/\s+/g, '')}">
+                                                    <div class="accordion-body">
+                                                        ${vuln.description}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : `
+                                    <p class="text-muted">Zafiyet bulunamadı.</p>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                    $('.file-list').append(fileCard);
+                });
+            }
+        });
+
+        function updateVulnerabilityCard(vulnerability, fileInfo) {
+            return `
+                <div class="vulnerability-card card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <span class="severity-indicator severity-${vulnerability.risk_level.toLowerCase()}"></span>
+                            ${vulnerability.name}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="vulnerability-details">
+                            <h6>Zafiyet Açıklaması:</h6>
+                            <p>${vulnerability.description}</p>
+                            
+                            <h6>Zafiyet Hakkında Genel Bilgi:</h6>
+                            <p>${getVulnerabilityInfo(vulnerability.name)}</p>
+                            
+                            <h6>Etki Analizi:</h6>
+                            <ul class="impact-list">
+                                ${vulnerability.impacts.map(impact => 
+                                    `<li>${impact}</li>`).join('')}
+                            </ul>
+                        </div>
+
+                        <div class="code-section">
+                            <div class="code-header">
+                                <strong>Problemli Kod:</strong>
+                                <span class="text-muted">${fileInfo.name}</span>
+                            </div>
+                            <div class="code-preview">
+                                <pre><code class="language-javascript">${vulnerability.code_sample || ''}</code></pre>
+                            </div>
+                            <div class="code-explanation mt-2">
+                                <strong>Kod Açıklaması:</strong>
+                                <p>${getCodeExplanation(vulnerability.name)}</p>
+                            </div>
+                        </div>
+
+                        <div class="fix-suggestion">
+                            <h6>Çözüm Önerileri:</h6>
+                            <ol class="fix-steps">
+                                ${vulnerability.solutions.map(solution =>
+                                    `<li>${solution}</li>`).join('')}
+                            </ol>
+                            
+                            <div class="code-section mt-3">
+                                <div class="code-header">
+                                    <strong>Önerilen Güvenli Kod:</strong>
+                                </div>
+                                <div class="code-preview">
+                                    <pre><code class="language-javascript">${vulnerability.fix_example || ''}</code></pre>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <h6>Ek Bilgiler:</h6>
+                            <ul class="list-group">
+                                <li class="list-group-item">
+                                    <strong>Risk Seviyesi:</strong> 
+                                    <span class="badge bg-${vulnerability.risk_level === 'Kritik' ? 'danger' : 
+                                                        vulnerability.risk_level === 'Yüksek' ? 'warning' : 'success'}">
+                                        ${vulnerability.risk_level}
+                                    </span>
+                                </li>
+                                <li class="list-group-item">
+                                    <strong>Tespit Güvenirliği:</strong> 
+                                    ${(vulnerability.probability * 100).toFixed(1)}%
+                                </li>
+                                <li class="list-group-item">
+                                    <strong>OWASP Kategorisi:</strong> 
+                                    ${vulnerability.owasp_category || 'Belirtilmemiş'}
+                                </li>
+                                <li class="list-group-item">
+                                    <strong>Kaynaklar:</strong>
+                                    <ul class="mt-2">
+                                        ${getVulnerabilityResources(vulnerability.name)}
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getVulnerabilityInfo(vulnName) {
+            const vulnInfo = {
+                'Broken Access Control': `Erişim kontrolü zafiyeti, kullanıcıların yetkileri dışında verilere veya işlemlere erişim sağlamasına olanak tanır. Bu zafiyet, uygun erişim kontrollerinin uygulanmaması sonucu ortaya çıkar.`,
+                'Cryptographic Failures': `Kriptografik güvenlik zafiyeti, hassas verilerin yeterince korunmaması veya zayıf şifreleme algoritmalarının kullanılması sonucu ortaya çıkar. Bu durum, veri sızıntısına ve kimlik hırsızlığına yol açabilir.`,
+                'Injection': `Kod enjeksiyon zafiyeti, saldırganların kötü niyetli kodları uygulama veritabanına veya sistemine enjekte etmesine olanak tanır. Bu zafiyet, kullanıcı girdilerinin düzgün filtrelenmemesi sonucu ortaya çıkar.`,
+                'Insecure Direct Object References (IDOR)': `IDOR, kullanıcıların yetkileri dışında nesnelere erişim sağlamasına olanak tanıyan bir güvenlik açığıdır. Bu zafiyet, uygun erişim kontrollerinin uygulanmaması sonucu ortaya çıkar.`,
+                'Security Misconfiguration': `Güvenlik yapılandırma hataları, uygulama veya sunucu yapılandırmalarının yanlış yapılması sonucu ortaya çıkar. Bu durum, hizmetin kötüye kullanılmasına ve veri sızıntısına yol açabilir.`,
+                'Sensitive Data Exposure': `Hassas verilerin yeterince korunmaması, kişisel bilgilerin ifşasına ve kimlik hırsızlığına yol açabilir. Bu zafiyet, verilerin şifrelenmemesi veya güvenli saklama yöntemlerinin kullanılmaması sonucu ortaya çıkar.`,
+                'Missing Function Level Access Control': `Fonksiyon seviyesinde erişim kontrolü eksikliği, kullanıcıların yetkileri dışında fonksiyonlara erişim sağlamasına olanak tanır. Bu durum, veri manipülasyonuna yol açabilir.`,
+                'Insufficient Logging and Monitoring': `Yetersiz günlük kaydı ve izleme, saldırıların tespit edilememesine ve zamanında müdahale edilememesine neden olabilir. Bu zafiyet, yeterli izleme sistemlerinin olmaması sonucu ortaya çıkar.`,
+                'Using Components with Known Vulnerabilities': `Bilinen zafiyetlere sahip bileşenlerin kullanılması, sistem güvenliğinin ihlaline ve veri sızıntısına yol açabilir. Bu durum, güncel olmayan bileşenlerin kullanılmasından kaynaklanır.`,
+                'Insufficient Security Controls': `Yetersiz güvenlik kontrolleri, sistem güvenliğinin ihlaline ve veri kaybına yol açabilir. Bu zafiyet, güvenlik önlemlerinin yetersiz olmasından kaynaklanır.`
+            };
+            return vulnInfo[vulnName] || 'Bu zafiyet türü için detaylı bilgi bulunmamaktadır.';
+        }
+
+        function getCodeExplanation(vulnName) {
+            const explanations = {
+                'Broken Access Control': `Bu kodda, kullanıcıların yetkileri kontrol edilmeden admin paneline erişim sağlanıyor. Bu durum, yetkisiz erişime olanak tanır.`,
+                'Cryptographic Failures': `Bu kodda, kullanıcı şifreleri şifrelenmeden veritabanına kaydediliyor. Bu durum, şifrelerin ele geçirilmesi halinde kullanıcıların kimliklerinin çalınmasına yol açar.`,
+                'Injection': `Bu kodda, kullanıcı girdileri doğrudan SQL sorgusuna ekleniyor. Bu durum, kötü niyetli kullanıcıların SQL sorgusunu manipüle etmesine olanak sağlar.`,
+                'Insecure Direct Object References (IDOR)': `Bu kodda, kullanıcıların yetkileri dışında nesnelere erişim sağlanıyor. Bu durum, yetkisiz veri erişimine yol açar.`,
+                'Security Misconfiguration': `Bu kodda, güvenli olmayan yapılandırmalar kullanılıyor. Bu durum, hizmetin kötüye kullanılmasına ve veri sızıntısına yol açabilir.`,
+                'Sensitive Data Exposure': `Bu kodda, hassas veriler şifrelenmeden saklanıyor. Bu durum, kişisel bilgilerin ifşasına yol açabilir.`,
+                'Missing Function Level Access Control': `Bu kodda, admin paneline erişim kontrolü yapılmıyor. Bu durum, yetkisiz erişime olanak tanır.`,
+                'Insufficient Logging and Monitoring': `Bu kodda, yeterli günlük kaydı yapılmıyor. Bu durum, saldırıların tespit edilememesine yol açar.`,
+                'Using Components with Known Vulnerabilities': `Bu kodda, bilinen zafiyetlere sahip bir kütüphane kullanılıyor. Bu durum, sistem güvenliğinin ihlaline yol açabilir.`,
+                'Insufficient Security Controls': `Bu kodda, yeterli güvenlik kontrolleri uygulanmıyor. Bu durum, sistem güvenliğinin ihlaline yol açabilir.`
+            };
+            return explanations[vulnName] || 'Bu kod için detaylı açıklama bulunmamaktadır.';
+        }
+
+        function getVulnerabilityResources(vulnName) {
+            const resources = {
+                'SQL Injection': `
+                    <li><a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection" target="_blank">
+                        OWASP SQL Injection</a></li>
+                    <li><a href="https://portswigger.net/web-security/sql-injection" target="_blank">
+                        PortSwigger SQL Injection Guide</a></li>`,
+                'XSS': `
+                    <li><a href="https://owasp.org/www-project-top-ten/2017/A7_2017-Cross-Site_Scripting_(XSS)" target="_blank">
+                        OWASP XSS</a></li>
+                    <li><a href="https://portswigger.net/web-security/cross-site-scripting" target="_blank">
+                        PortSwigger XSS Guide</a></li>`
+                // Diğer zafiyet türleri için kaynaklar eklenebilir
+            };
+            return resources[vulnName] || '<li>Bu zafiyet türü için ek kaynaklar bulunmamaktadır.</li>';
+        }
+    </script>
+</body>
+</html>
